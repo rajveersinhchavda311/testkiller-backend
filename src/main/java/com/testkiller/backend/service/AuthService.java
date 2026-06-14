@@ -1,6 +1,7 @@
 package com.testkiller.backend.service;
 
 import com.testkiller.backend.dto.ApiResponse;
+import com.testkiller.backend.dto.AuthResponse;
 import com.testkiller.backend.dto.ForgotPasswordRequest;
 import com.testkiller.backend.dto.LoginRequest;
 import com.testkiller.backend.dto.SignupRequest;
@@ -12,10 +13,14 @@ import com.testkiller.backend.exception.InactiveUserException;
 import com.testkiller.backend.exception.InvalidCredentialsException;
 import com.testkiller.backend.exception.UserNotFoundException;
 import com.testkiller.backend.repository.UserRepository;
+import com.testkiller.backend.security.JwtUtil;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -23,10 +28,12 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JwtUtil jwtUtil;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.jwtUtil = jwtUtil;
     }
 
     public ApiResponse registerUser(SignupRequest request) {
@@ -45,15 +52,7 @@ public class AuthService {
 
         User savedUser = userRepository.save(user);
 
-        UserResponse responseData = new UserResponse();
-        responseData.setId(savedUser.getId());
-        responseData.setFirstName(savedUser.getFirstName());
-        responseData.setLastName(savedUser.getLastName());
-        responseData.setEmail(savedUser.getEmail());
-        responseData.setRole(savedUser.getRole());
-        responseData.setActive(savedUser.isActive());
-        responseData.setCreatedAt(savedUser.getCreatedAt());
-
+        UserResponse responseData = toUserResponse(savedUser);
         return new ApiResponse(true, "User registered successfully", responseData);
     }
 
@@ -69,16 +68,17 @@ public class AuthService {
             throw new InactiveUserException("User account is not active");
         }
 
-        UserResponse responseData = new UserResponse();
-        responseData.setId(user.getId());
-        responseData.setFirstName(user.getFirstName());
-        responseData.setLastName(user.getLastName());
-        responseData.setEmail(user.getEmail());
-        responseData.setRole(user.getRole());
-        responseData.setActive(user.isActive());
-        responseData.setCreatedAt(user.getCreatedAt());
+        UserDetails userDetails = new org.springframework.security.core.userdetails.User(
+                user.getEmail(),
+                user.getPassword(),
+                List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
+        );
 
-        return new ApiResponse(true, "Login successful", responseData);
+        String token = jwtUtil.generateToken(userDetails);
+        UserResponse userResponse = toUserResponse(user);
+        AuthResponse authResponse = new AuthResponse(token, jwtUtil.getExpirationMs(), userResponse);
+
+        return new ApiResponse(true, "Login successful", authResponse);
     }
 
     public ApiResponse forgotPassword(ForgotPasswordRequest request) {
@@ -91,5 +91,17 @@ public class AuthService {
         return new ApiResponse(true,
                 "Password reset instructions will be sent if the email is registered",
                 data);
+    }
+
+    private UserResponse toUserResponse(User user) {
+        UserResponse r = new UserResponse();
+        r.setId(user.getId());
+        r.setFirstName(user.getFirstName());
+        r.setLastName(user.getLastName());
+        r.setEmail(user.getEmail());
+        r.setRole(user.getRole());
+        r.setActive(user.isActive());
+        r.setCreatedAt(user.getCreatedAt());
+        return r;
     }
 }
