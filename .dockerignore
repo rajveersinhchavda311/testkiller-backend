@@ -1,0 +1,10 @@
+# Keep the build context small and never ship secrets or local artifacts.
+target/
+.git/
+.gitignore
+.gitattributes
+.env
+*.md
+.idea/
+.vscode/
+*.iml

@@ -1,0 +1,26 @@
+# Render Blueprint — Infrastructure as code for the TestKiller backend.
+# Commit this; Render reads it when you create a "Blueprint" service.
+# Secret values are marked `sync: false` so they are NEVER stored in git —
+# Render prompts for them in the dashboard on first deploy.
+services:
+  - type: web
+    name: testkiller-backend
+    runtime: docker
+    plan: free
+    region: singapore           # closest Render region to TiDB ap-southeast-1
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/v1/public/test   # public 200 endpoint for Render's probe
+    autoDeploy: true            # redeploy on every push to the connected branch
+    envVars:
+      - key: DB_URL
+        sync: false             # jdbc:mysql://...tidbcloud.com:4000/testkiller_db?sslMode=VERIFY_IDENTITY&enabledTLSProtocols=TLSv1.2,TLSv1.3
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: DDL_AUTO
+        value: update           # auto-create/upgrade schema on boot
+      - key: SHOW_SQL
+        value: "false"          # quiet SQL logging in production
